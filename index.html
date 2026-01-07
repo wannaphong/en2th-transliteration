@@ -6,41 +6,44 @@
     <title>English to Thai Transliteration</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
         input, button { padding: 12px; font-size: 1rem; border-radius: 4px; border: 1px solid #ccc; }
         input { width: 60%; }
         button { background: #007bff; color: white; border: none; cursor: pointer; }
         button:hover { background: #0056b3; }
         
-        .output-box { margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; }
-        .label { font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
-        .value { font-size: 1.5rem; color: #333; font-weight: bold; }
+        .container { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
         
-        /* Syllable badge style */
-        .syllable { display: inline-block; background: #e2e6ea; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 1rem; margin-right: 5px; border: 1px solid #ced4da; }
-        .loading { color: #888; font-size: 0.9rem; }
+        /* Word Block Style */
+        .word-block { background: white; border: 1px solid #ddd; padding: 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 5px; }
+        .word-header { font-size: 0.8rem; color: #888; font-weight: bold; text-transform: uppercase; }
+        
+        .syllable-container { display: flex; gap: 5px; flex-wrap: wrap; }
+        .syllable { background: #e2e6ea; color: #333; padding: 2px 8px; border-radius: 4px; font-size: 0.9rem; border: 1px solid #ced4da; }
+        
+        .thai-output { font-size: 1.4rem; color: #007bff; font-weight: bold; }
+        
+        .full-sentence-result { margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border: 1px solid #90caf9; }
+        .loading { color: #888; font-size: 0.9rem; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <h2>EN-TH Transliteration</h2>
+    <h2>EN-TH Sentence Transliteration</h2>
     
     <div>
-        <input type="text" id="inputText" placeholder="e.g. computer" onkeydown="if(event.key==='Enter') runInference()">
-        <button onclick="runInference()">Convert</button>
-    </div>
-
-    <div class="output-box">
-        <div class="label">Tokens (Syllables)</div>
-        <div id="syllableResult" class="value" style="font-size: 1rem; min-height: 1.5rem;">-</div>
-    </div>
-
-    <div class="output-box">
-        <div class="label">Thai Prediction</div>
-        <div id="result" class="value" style="color: #007bff;">-</div>
+        <input type="text" id="inputText" placeholder="e.g. hello world" onkeydown="if(event.key==='Enter') runPipeline()">
+        <button onclick="runPipeline()">Convert</button>
     </div>
     
-    <div id="status" class="loading" style="margin-top:10px;">Loading models...</div>
+    <div id="status" class="loading">Loading models...</div>
+
+    <div class="full-sentence-result">
+        <div style="font-size: 0.8rem; color: #555; margin-bottom: 5px;">FULL SENTENCE</div>
+        <div id="finalOutput" style="font-size: 1.8rem; color: #0056b3; font-weight: bold;">...</div>
+    </div>
+
+    <div id="breakdownContainer" class="container"></div>
 
     <script>
         // --- 1. CONFIGURATION ---
@@ -71,22 +74,24 @@
         const MAX_LEN = 20;
         let encSession, decSession;
 
-        // --- 2. SYLLABLE TOKENIZER ---
+        // --- 2. TOKENIZERS ---
+        
+        // A. Word Tokenizer (Splits by spaces)
+        function tokenizeWords(sentence) {
+            // Trim and split by one or more spaces
+            return sentence.trim().split(/\s+/);
+        }
+
+        // B. Syllable Tokenizer (Splits individual words)
         function tokenizeSyllables(word) {
             word = word.toLowerCase();
             if (word.length <= 3) return [word];
-
-            // Handle 'le' at end (apple -> ap-ple)
             if (word.slice(-2) === 'le' && !['a','e','i','o','u'].includes(word.slice(-3, -2))) {
                 const main = word.slice(0, -2);
                 return [...tokenizeSyllables(main), 'le'];
             }
-
-            // Regex heuristic: [consonants] + [vowels] + [optional closing consonants]
             const syllableRegex = /[^aeiouy]*[aeiouy]+(?:[^aeiouy]*$|[^aeiouy](?=[^aeiouy]))?/gi;
             let syllables = word.match(syllableRegex) || [word];
-            
-            // Cleanup: Attach leftovers
             const joined = syllables.join('');
             if (joined.length < word.length) {
                 syllables[syllables.length - 1] += word.slice(joined.length);
@@ -107,31 +112,21 @@
         }
         loadModels();
 
-        // --- 4. INFERENCE ---
-        async function runInference() {
-            const word = document.getElementById('inputText').value.toLowerCase().trim();
-            if (!word || !encSession) return;
-            
-            // A. Display Syllables (Visualization Only)
-            const tokens = tokenizeSyllables(word);
-            const tokenHtml = tokens.map(t => `<span class="syllable">${t}</span>`).join('');
-            document.getElementById('syllableResult').innerHTML = tokenHtml;
-
-            // B. Run ONNX Model (Character-Level)
-            document.getElementById('result').innerText = "...";
+        // --- 4. CORE INFERENCE (Single Word) ---
+        async function transliterateWord(word) {
+            word = word.toLowerCase();
             try {
-                // Encode Chars
+                // Encode
                 const srcIndices = [1]; 
                 for (let char of word) srcIndices.push(VOCAB_DATA.input_char2idx[char] || 3);
                 srcIndices.push(2);
 
                 const srcTensor = new ort.Tensor('int64', BigInt64Array.from(srcIndices.map(x => BigInt(x))), [1, srcIndices.length]);
                 
-                // Encoder
                 const encResults = await encSession.run({ src: srcTensor });
                 const context = encResults.context;
 
-                // Decoder
+                // Decode
                 let hidden = context;
                 let currTokenIdx = 1n;
                 let decodedStr = "";
@@ -156,13 +151,51 @@
                     if (bestIdx > 3) decodedStr += (VOCAB_DATA.target_idx2char[bestIdx] || "");
                     currTokenIdx = BigInt(bestIdx);
                 }
-
-                document.getElementById('result').innerText = decodedStr;
-
+                return decodedStr;
             } catch (e) {
-                console.error(e);
-                document.getElementById('result').innerText = "Error";
+                console.error("Error processing word:", word, e);
+                return "???";
             }
+        }
+
+        // --- 5. MAIN PIPELINE ---
+        async function runPipeline() {
+            const sentence = document.getElementById('inputText').value;
+            if (!sentence || !encSession) return;
+
+            const container = document.getElementById('breakdownContainer');
+            container.innerHTML = ""; // Clear previous
+            document.getElementById('finalOutput').innerText = "...";
+
+            // Step A: Word Tokenization
+            const words = tokenizeWords(sentence);
+            const finalResults = [];
+
+            // Process each word individually
+            for (let word of words) {
+                // 1. Syllable Tokenization (For Display)
+                const syllables = tokenizeSyllables(word);
+                
+                // 2. Inference (Async)
+                const thaiWord = await transliterateWord(word);
+                finalResults.push(thaiWord);
+
+                // 3. Render Block
+                const wordBlock = document.createElement('div');
+                wordBlock.className = 'word-block';
+                
+                const sylHtml = syllables.map(s => `<span class="syllable">${s}</span>`).join('');
+                
+                wordBlock.innerHTML = `
+                    <div class="word-header">Source: ${word}</div>
+                    <div class="syllable-container">${sylHtml}</div>
+                    <div class="thai-output">${thaiWord}</div>
+                `;
+                container.appendChild(wordBlock);
+            }
+
+            // Step B: Join Final Sentence
+            document.getElementById('finalOutput').innerText = finalResults.join(' ');
         }
     </script>
 </body>
