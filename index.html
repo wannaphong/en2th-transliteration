@@ -7,42 +7,59 @@
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-        input, button { padding: 12px; font-size: 1rem; border-radius: 4px; border: 1px solid #ccc; }
-        input { width: 60%; }
-        button { background: #007bff; color: white; border: none; cursor: pointer; }
+        
+        /* Input Area */
+        .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        input[type="text"] { flex-grow: 1; padding: 12px; font-size: 1rem; border-radius: 4px; border: 1px solid #ccc; }
+        button { padding: 12px 20px; font-size: 1rem; border-radius: 4px; border: none; background: #007bff; color: white; cursor: pointer; }
         button:hover { background: #0056b3; }
+
+        /* Toggle Switch */
+        .controls { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; font-size: 0.9rem; color: #555; }
+        input[type="checkbox"] { transform: scale(1.2); cursor: pointer; }
+
+        /* Results Area */
+        .full-sentence-result { padding: 20px; background: #e3f2fd; border-radius: 8px; border: 1px solid #90caf9; margin-bottom: 20px; }
+        .result-label { font-size: 0.8rem; color: #555; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .result-text { font-size: 1.8rem; color: #0056b3; font-weight: bold; min-height: 1.8rem;}
+
+        /* Word Blocks Grid */
+        .container { display: flex; flex-wrap: wrap; gap: 10px; }
         
-        .container { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+        .word-block { background: white; border: 1px solid #ddd; padding: 10px 15px; border-radius: 8px; display: flex; flex-direction: column; gap: 4px; min-width: 100px; }
+        .word-header { font-size: 0.85rem; color: #666; font-weight: 600; }
         
-        /* Word Block Style */
-        .word-block { background: white; border: 1px solid #ddd; padding: 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 5px; }
-        .word-header { font-size: 0.8rem; color: #888; font-weight: bold; text-transform: uppercase; }
+        .syllable-container { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0; }
+        .syllable { background: #f0f2f5; color: #444; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; border: 1px solid #e1e4e8; }
         
-        .syllable-container { display: flex; gap: 5px; flex-wrap: wrap; }
-        .syllable { background: #e2e6ea; color: #333; padding: 2px 8px; border-radius: 4px; font-size: 0.9rem; border: 1px solid #ced4da; }
+        .thai-output { font-size: 1.2rem; color: #007bff; font-weight: bold; margin-top: 2px; }
         
-        .thai-output { font-size: 1.4rem; color: #007bff; font-weight: bold; }
-        
-        .full-sentence-result { margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border: 1px solid #90caf9; }
         .loading { color: #888; font-size: 0.9rem; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <h2>EN-TH Sentence Transliteration</h2>
+    <h2>EN-TH Transliteration</h2>
     
-    <div>
-        <input type="text" id="inputText" placeholder="e.g. hello world" onkeydown="if(event.key==='Enter') runPipeline()">
+    <div class="input-group">
+        <input type="text" id="inputText" placeholder="e.g. hello computer" onkeydown="if(event.key==='Enter') runPipeline()">
         <button onclick="runPipeline()">Convert</button>
     </div>
-    
-    <div id="status" class="loading">Loading models...</div>
 
-    <div class="full-sentence-result">
-        <div style="font-size: 0.8rem; color: #555; margin-bottom: 5px;">FULL SENTENCE</div>
-        <div id="finalOutput" style="font-size: 1.8rem; color: #0056b3; font-weight: bold;">...</div>
+    <div class="controls">
+        <label>
+            <input type="checkbox" id="sylToggle" checked> 
+            Show Syllable Breakdown
+        </label>
+        <span id="status" class="loading" style="margin-left: auto;">Loading models...</span>
     </div>
 
+    <div class="full-sentence-result">
+        <div class="result-label">Full Sentence Result</div>
+        <div id="finalOutput" class="result-text">...</div>
+    </div>
+
+    <div class="result-label" style="margin-bottom: 10px;">Word-by-Word Analysis</div>
     <div id="breakdownContainer" class="container"></div>
 
     <script>
@@ -75,14 +92,10 @@
         let encSession, decSession;
 
         // --- 2. TOKENIZERS ---
-        
-        // A. Word Tokenizer (Splits by spaces)
         function tokenizeWords(sentence) {
-            // Trim and split by one or more spaces
             return sentence.trim().split(/\s+/);
         }
 
-        // B. Syllable Tokenizer (Splits individual words)
         function tokenizeSyllables(word) {
             word = word.toLowerCase();
             if (word.length <= 3) return [word];
@@ -105,18 +118,20 @@
                 const option = { executionProviders: ['wasm'] }; 
                 encSession = await ort.InferenceSession.create('./v4-encoder.onnx', option);
                 decSession = await ort.InferenceSession.create('./v4-decoder.onnx', option);
-                document.getElementById('status').innerText = "Models Loaded! Ready.";
+                document.getElementById('status').innerText = "Models Ready";
+                document.getElementById('status').style.color = "green";
             } catch (e) {
-                document.getElementById('status').innerText = "Error: " + e;
+                document.getElementById('status').innerText = "Load Error";
+                document.getElementById('status').style.color = "red";
+                console.error(e);
             }
         }
         loadModels();
 
-        // --- 4. CORE INFERENCE (Single Word) ---
+        // --- 4. CORE INFERENCE ---
         async function transliterateWord(word) {
             word = word.toLowerCase();
             try {
-                // Encode
                 const srcIndices = [1]; 
                 for (let char of word) srcIndices.push(VOCAB_DATA.input_char2idx[char] || 3);
                 srcIndices.push(2);
@@ -126,7 +141,6 @@
                 const encResults = await encSession.run({ src: srcTensor });
                 const context = encResults.context;
 
-                // Decode
                 let hidden = context;
                 let currTokenIdx = 1n;
                 let decodedStr = "";
@@ -147,7 +161,7 @@
                         if (logits[j] > maxVal) { maxVal = logits[j]; bestIdx = j; }
                     }
 
-                    if (bestIdx === 2) break; // EOS
+                    if (bestIdx === 2) break;
                     if (bestIdx > 3) decodedStr += (VOCAB_DATA.target_idx2char[bestIdx] || "");
                     currTokenIdx = BigInt(bestIdx);
                 }
@@ -164,37 +178,38 @@
             if (!sentence || !encSession) return;
 
             const container = document.getElementById('breakdownContainer');
-            container.innerHTML = ""; // Clear previous
+            const showSyllables = document.getElementById('sylToggle').checked; // Check Toggle
+            
+            container.innerHTML = "";
             document.getElementById('finalOutput').innerText = "...";
 
-            // Step A: Word Tokenization
             const words = tokenizeWords(sentence);
             const finalResults = [];
 
-            // Process each word individually
             for (let word of words) {
-                // 1. Syllable Tokenization (For Display)
-                const syllables = tokenizeSyllables(word);
-                
-                // 2. Inference (Async)
                 const thaiWord = await transliterateWord(word);
                 finalResults.push(thaiWord);
 
-                // 3. Render Block
+                // Build Element
                 const wordBlock = document.createElement('div');
                 wordBlock.className = 'word-block';
                 
-                const sylHtml = syllables.map(s => `<span class="syllable">${s}</span>`).join('');
-                
+                // CONDITIONAL RENDERING FOR SYLLABLES
+                let middleContent = "";
+                if (showSyllables) {
+                    const syllables = tokenizeSyllables(word);
+                    const sylHtml = syllables.map(s => `<span class="syllable">${s}</span>`).join('');
+                    middleContent = `<div class="syllable-container">${sylHtml}</div>`;
+                }
+
                 wordBlock.innerHTML = `
-                    <div class="word-header">Source: ${word}</div>
-                    <div class="syllable-container">${sylHtml}</div>
+                    <div class="word-header">${word}</div>
+                    ${middleContent}
                     <div class="thai-output">${thaiWord}</div>
                 `;
                 container.appendChild(wordBlock);
             }
 
-            // Step B: Join Final Sentence
             document.getElementById('finalOutput').innerText = finalResults.join(' ');
         }
     </script>
