@@ -98,8 +98,8 @@
         async function loadModels() {
             try {
                 const option = { executionProviders: ['wasm'] }; 
-                encSession = await ort.InferenceSession.create('./encoder.onnx', option);
-                decSession = await ort.InferenceSession.create('./decoder.onnx', option);
+                encSession = await ort.InferenceSession.create('./v4-encoder.onnx', option);
+                decSession = await ort.InferenceSession.create('./v4-decoder.onnx', option);
                 document.getElementById('status').innerText = "Models Loaded! Ready.";
             } catch (e) {
                 document.getElementById('status').innerText = "Error: " + e;
