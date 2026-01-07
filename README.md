@@ -1,4 +1,4 @@
-# English2Thai transliteration
+# English2Thai Transliteration
 English to Thai transliteration
 
 > python inference.py
