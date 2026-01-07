@@ -67,8 +67,8 @@
                 const option = { executionProviders: ['wasm'] }; 
                 
                 // Load .onnx files (must be in same folder)
-                encSession = await ort.InferenceSession.create('./v4-encoder.onnx', option);
-                decSession = await ort.InferenceSession.create('./v4-decoder.onnx', option);
+                encSession = await ort.InferenceSession.create('https://github.com/wannaphong/en2th-transliteration/releases/download/v4-model/v4-encoder.onnx', option);
+                decSession = await ort.InferenceSession.create('https://github.com/wannaphong/en2th-transliteration/releases/download/v4-model/v4-decoder.onnx', option);
                 
                 document.getElementById('status').innerText = "Models Loaded! Ready.";
             } catch (e) {
