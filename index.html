@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English to Thai Transliteration</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+        input, button { padding: 10px; font-size: 1rem; }
+        input { width: 70%; }
+        #result { margin-top: 20px; font-weight: bold; font-size: 1.5rem; color: #007bff; min-height: 1.5em; }
+        .loading { color: #888; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+    <h2>EN to TH Transliteration</h2>
+    <p>Enter English text (Romanized Thai):</p>
+    
+    <div>
+        <input type="text" id="inputText" placeholder="e.g. sawasdee" onkeydown="if(event.key==='Enter') runInference()">
+        <button onclick="runInference()">Transliterate</button>
+    </div>
+    
+    <div id="result"></div>
+    <div id="status" class="loading">Loading models...</div>
+
+    <script>
+        // ==========================================
+        // 1. CONFIGURATION (PASTE YOUR JSON HERE)
+        // ==========================================
+        // REPLACE the empty object below with the JSON output from Python
+        const VOCAB_DATA = {
+    "input_char2idx": {
+        '<PAD>': 0, '<SOS>': 1, '<EOS>': 2, '<UNK>': 3,
+        'a': 4, 'c': 5, 't': 6, 'i': 7, 'o': 8, 'n': 9, 'v': 10, 'e': 11,
+        'd': 12, 'p': 13, 'r': 14, 'l': 15, 'b': 16, 'u': 17, 'm': 18, 'h': 19,
+        'g': 20, 's': 21, 'k': 22, 'y': 23, 'x': 24, 'f': 25, 'w': 26, 'j': 27,
+        'z': 28, 'q': 29, '-': 30, ' ': 31, 'é': 32, "'": 33, 'ฺ': 34, 'è': 35,
+        '岸': 36, '田': 37, '文': 38, '雄': 39, '.': 40, '1': 41, '7': 42, '3': 43,
+        '9': 44, '–': 45
+    },
+    "target_idx2char": {
+        "0": "<PAD>", "1": "<SOS>", "2": "<EOS>", "3": "<UNK>",
+        "4": "แ", "5": "อ", "6": "ค", "7": "ช", "8": "ั", "9": "่", "10": "น",
+        "11": "ท", "12": "ี", "13": "ฟ", "14": "ะ", "15": "ด", "16": "ป", "17": "เ",
+        "18": "ต", "19": "ร", "20": "์", "21": "ล", "22": "บ", "23": "้", "24": "ม",
+        "25": "ก", "26": "ฮ", "27": "า", "28": "ิ", "29": "ึ", "30": "พ", "31": "ส",
+        "32": "ซ", "33": "โ", "34": "็", "35": "ง", "36": "ุ", "37": "๊", "38": "ู",
+        "39": "ว", "40": "ไ", "41": "ย", "42": "จ", "43": "ห", "44": "ศ", "45": "ธ",
+        "46": "ฤ", "47": "ษ", "48": "ฎ", "49": "๋", "50": " ", "51": "ำ", "52": "ถ",
+        "53": "ฉ", "54": "1", "55": "ญ", "56": "-", "57": "ฃ", "58": "9", "59": "3",
+        "60": "ฌ", "61": "y", "62": "l", "63": "o", "64": "n", "65": "ข", "66": "ฝ"
+    }
+};
+
+        const MAX_LEN = 20;
+        let encSession, decSession;
+
+        // ==========================================
+        // 2. SETUP & LOAD MODELS
+        // ==========================================
+        async function loadModels() {
+            try {
+                // Configure session options (optional, can use wasm or webgl)
+                const option = { executionProviders: ['wasm'] }; 
+                
+                // Load .onnx files (must be in same folder)
+                encSession = await ort.InferenceSession.create('./v4-encoder.onnx', option);
+                decSession = await ort.InferenceSession.create('./v4-decoder.onnx', option);
+                
+                document.getElementById('status').innerText = "Models Loaded! Ready.";
+            } catch (e) {
+                document.getElementById('status').innerText = "Error loading models: " + e;
+                console.error(e);
+            }
+        }
+
+        loadModels();
+
+        // ==========================================
+        // 3. INFERENCE LOGIC
+        // ==========================================
+        async function runInference() {
+            const word = document.getElementById('inputText').value.toLowerCase();
+            if (!word || !encSession) return;
+            
+            document.getElementById('result').innerText = "...";
+
+            try {
+                // --- STEP A: PREPROCESS (Encode) ---
+                const srcIndices = [1]; // Start with <SOS> (1)
+                for (let char of word) {
+                    // Default to <UNK> (3) if char not found
+                    srcIndices.push(VOCAB_DATA.input_char2idx[char] || 3);
+                }
+                srcIndices.push(2); // End with <EOS> (2)
+
+                // Create Tensor (BigInt64Array required for Int64 models)
+                const srcTensor = new ort.Tensor('int64', BigInt64Array.from(srcIndices.map(x => BigInt(x))), [1, srcIndices.length]);
+
+                // --- STEP B: RUN ENCODER ---
+                const encFeeds = { src: srcTensor };
+                const encResults = await encSession.run(encFeeds);
+                const context = encResults.context; // Output name 'context'
+
+                // --- STEP C: DECODER LOOP ---
+                let hidden = context; // Init hidden with context
+                let currTokenIdx = 1n; // <SOS> as BigInt
+                let decodedStr = "";
+
+                for (let i = 0; i < MAX_LEN; i++) {
+                    // Prepare Decoder Inputs
+                    const decFeeds = {
+                        input: new ort.Tensor('int64', BigInt64Array.from([currTokenIdx]), [1]),
+                        hidden: hidden,
+                        context: context
+                    };
+
+                    // Run Decoder
+                    const decResults = await decSession.run(decFeeds);
+                    
+                    // Update hidden state for next loop
+                    hidden = decResults.new_hidden;
+                    
+                    // Get Prediction Logits (Shape [1, vocab_size])
+                    const logits = decResults.prediction.data; // Float32Array
+
+                    // Argmax (Find best index)
+                    let maxVal = -Infinity;
+                    let bestIdx = 0;
+                    for (let j = 0; j < logits.length; j++) {
+                        if (logits[j] > maxVal) {
+                            maxVal = logits[j];
+                            bestIdx = j;
+                        }
+                    }
+
+                    // Check <EOS> (2)
+                    if (bestIdx === 2) break;
+
+                    // Append Char
+                    if (bestIdx > 3) { // Skip PAD, SOS, UNK
+                        decodedStr += (VOCAB_DATA.target_idx2char[bestIdx] || "");
+                    }
+
+                    // Update token for next step
+                    currTokenIdx = BigInt(bestIdx);
+                }
+
+                document.getElementById('result').innerText = decodedStr;
+
+            } catch (e) {
+                console.error(e);
+                document.getElementById('result').innerText = "Error: " + e.message;
+            }
+        }
+    </script>
+</body>
+</html>
