@@ -137,7 +137,7 @@ input_vocab.char2idx={'<PAD>': 0,
  '–': 45}
 
 
-def transliterate_onnx(word, input_vocab, max_len=20):
+def transliterate_onnx(word, max_len=20):
     # ==========================================
     # Step 1: Preprocess Input (Encoder)
     # ==========================================
