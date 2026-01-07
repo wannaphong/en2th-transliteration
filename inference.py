@@ -3,8 +3,8 @@ import numpy as np
 
 # 1. Load the ONNX Models
 # Providers can be ['CUDAExecutionProvider', 'CPUExecutionProvider'] if you have GPU setup
-enc_session = ort.InferenceSession("v4-encoder.onnx", providers=['CPUExecutionProvider'])
-dec_session = ort.InferenceSession("v4-decoder.onnx", providers=['CPUExecutionProvider'])
+enc_session = ort.InferenceSession("v5-encoder.onnx", providers=['CPUExecutionProvider'])
+dec_session = ort.InferenceSession("v5-decoder.onnx", providers=['CPUExecutionProvider'])
 
 idx2char={0: '<PAD>',
  1: '<SOS>',
@@ -72,7 +72,21 @@ idx2char={0: '<PAD>',
  63: 'o',
  64: 'n',
  65: 'ข',
- 66: 'ฝ'}
+ 66: 'ฝ',
+ 67: "'",
+ 68: 'ฺ',
+ 69: 'ื',
+ 70: 'ใ',
+ 71: '/',
+ 72: 'ฯ',
+ 73: 'ๆ',
+ 74: '`',
+ 75: 'ภ',
+ 76: '&',
+ 77: 'ณ',
+ 78: '๎',
+ 79: '*',
+ 80: ':'}
 
 class Vocabulary:
     def __init__(self):
@@ -138,7 +152,17 @@ input_vocab.char2idx={'<PAD>': 0,
  '7': 42,
  '3': 43,
  '9': 44,
- '–': 45}
+ '–': 45,
+ '"': 46,
+ '{': 47,
+ '}': 48,
+ '/': 49,
+ '+': 50,
+ '4': 51,
+ '8': 52,
+ '6': 53,
+ '2': 54,
+ '0': 55}
 
 
 def transliterate_onnx(word, max_len=20):
