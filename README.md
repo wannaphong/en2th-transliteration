@@ -8,11 +8,13 @@ output:
 ```
 English         | Thai (Predicted)
 -----------------------------------
-hello           | เฮลโล          
-computer        | คอมพิวเตอร์    
-bangkok         | แบงก์็อก       
-padthai         | แพดเทด         
-cat             | แค็ต   
+hello           | เฮล'โล         
+computer        | คัมพิวเตอร์    
+bangkok         | แบง'อค         
+pie             | พี             
+cat             | แคท            
+unknow          | อังคโว         
+sunset          | ซัน'เซท 
 ```
 
 **Run index.html**

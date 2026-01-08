@@ -78,7 +78,9 @@ idx2char={0: '<PAD>',
  74: '`',
  75: 'ณ',
  76: '๎',
- 77: '*'}
+ 77: ':',
+ 78: '*',
+ 79: 'ผ'}
 
 
 char2idx={'<PAD>': 0,
@@ -148,8 +150,8 @@ class Vocabulary:
 
 # 2. Load the Smart Models
 # Note: Ensure you are loading the '_attn.onnx' versions
-enc_session = ort.InferenceSession("v7-encoder_attn.onnx", providers=['CPUExecutionProvider'])
-dec_session = ort.InferenceSession("v7-decoder_attn.onnx", providers=['CPUExecutionProvider'])
+enc_session = ort.InferenceSession("v8-encoder_attn.onnx", providers=['CPUExecutionProvider'])
+dec_session = ort.InferenceSession("v8-decoder_attn.onnx", providers=['CPUExecutionProvider'])
 
 def transliterate_smart(word, max_len=25):
     # ==========================================
