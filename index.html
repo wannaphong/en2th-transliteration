@@ -62,8 +62,8 @@
             try {
                 const option = { executionProviders: ['wasm'] }; 
                 // Note: File names changed to _attn.onnx
-                encSession = await ort.InferenceSession.create('./v8-encoder_attn.onnx', option);
-                decSession = await ort.InferenceSession.create('./v8-decoder_attn.onnx', option);
+                encSession = await ort.InferenceSession.create('./v9-encoder_attn.onnx', option);
+                decSession = await ort.InferenceSession.create('./v9-decoder_attn.onnx', option);
                 document.getElementById('status').innerText = "Smart Models Ready";
                 document.getElementById('status').style.color = "green";
             } catch (e) {

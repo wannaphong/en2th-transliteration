@@ -150,8 +150,8 @@ class Vocabulary:
 
 # 2. Load the Smart Models
 # Note: Ensure you are loading the '_attn.onnx' versions
-enc_session = ort.InferenceSession("v8-encoder_attn.onnx", providers=['CPUExecutionProvider'])
-dec_session = ort.InferenceSession("v8-decoder_attn.onnx", providers=['CPUExecutionProvider'])
+enc_session = ort.InferenceSession("v9-encoder_attn.onnx", providers=['CPUExecutionProvider'])
+dec_session = ort.InferenceSession("v9-decoder_attn.onnx", providers=['CPUExecutionProvider'])
 
 def transliterate_smart(word, max_len=25):
     # ==========================================
