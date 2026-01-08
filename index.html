@@ -3,187 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English to Thai Transliteration</title>
+    <title>Smart EN-TH Transliteration</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
     <style>
+        /* [Keeping your previous CSS styles...] */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-        
-        /* Input Area */
         .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
         input[type="text"] { flex-grow: 1; padding: 12px; font-size: 1rem; border-radius: 4px; border: 1px solid #ccc; }
-        button { padding: 12px 20px; font-size: 1rem; border-radius: 4px; border: none; background: #007bff; color: white; cursor: pointer; }
-        button:hover { background: #0056b3; }
-
-        /* Toggle Switch */
-        .controls { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; font-size: 0.9rem; color: #555; }
-        input[type="checkbox"] { transform: scale(1.2); cursor: pointer; }
-
-        /* Results Area */
+        button { padding: 12px 20px; font-size: 1rem; border-radius: 4px; border: none; background: #28a745; color: white; cursor: pointer; }
+        button:hover { background: #218838; }
         .full-sentence-result { padding: 20px; background: #e3f2fd; border-radius: 8px; border: 1px solid #90caf9; margin-bottom: 20px; }
-        .result-label { font-size: 0.8rem; color: #555; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .result-text { font-size: 1.8rem; color: #0056b3; font-weight: bold; min-height: 1.8rem;}
-
-        /* Word Blocks Grid */
+        .result-text { font-size: 1.8rem; color: #0056b3; font-weight: bold; }
         .container { display: flex; flex-wrap: wrap; gap: 10px; }
-        
-        .word-block { background: white; border: 1px solid #ddd; padding: 10px 15px; border-radius: 8px; display: flex; flex-direction: column; gap: 4px; min-width: 100px; }
-        .word-header { font-size: 0.85rem; color: #666; font-weight: 600; }
-        
-        .syllable-container { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0; }
-        .syllable { background: #f0f2f5; color: #444; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; border: 1px solid #e1e4e8; }
-        
-        .thai-output { font-size: 1.2rem; color: #007bff; font-weight: bold; margin-top: 2px; }
-        
-        .loading { color: #888; font-size: 0.9rem; margin-top: 10px; }
+        .word-block { background: white; border: 1px solid #ddd; padding: 10px 15px; border-radius: 8px; }
+        .syllable { background: #f0f2f5; color: #444; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; margin-right:2px; }
+        .thai-output { font-size: 1.2rem; color: #28a745; font-weight: bold; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-    <h2>EN-TH Transliteration</h2>
+    <h2>Smart Transliteration (Bi-GRU + Attention)</h2>
     
     <div class="input-group">
-        <input type="text" id="inputText" placeholder="e.g. hello computer" onkeydown="if(event.key==='Enter') runPipeline()">
-        <button onclick="runPipeline()">Convert</button>
+        <input type="text" id="inputText" placeholder="e.g. christopher nolan" onkeydown="if(event.key==='Enter') runPipeline()">
+        <button onclick="runPipeline()">Smart Convert</button>
     </div>
 
     <div class="controls">
-        <label>
-            <input type="checkbox" id="sylToggle" checked> 
-            Show Syllable Breakdown
-        </label>
-        <span id="status" class="loading" style="margin-left: auto;">Loading models...</span>
+        <label><input type="checkbox" id="sylToggle" checked> Show Syllables</label>
+        <span id="status" style="margin-left: 10px; color: #888;">Loading models...</span>
     </div>
 
     <div class="full-sentence-result">
-        <div class="result-label">Full Sentence Result</div>
+        <div style="font-size: 0.8rem; color: #555;">FULL RESULT</div>
         <div id="finalOutput" class="result-text">...</div>
     </div>
 
-    <div class="result-label" style="margin-bottom: 10px;">Word-by-Word Analysis</div>
     <div id="breakdownContainer" class="container"></div>
 
     <script>
-        // --- 1. CONFIGURATION ---
-        const VOCAB_DATA = {
-    "input_char2idx": {
-        '<PAD>': 0, '<SOS>': 1, '<EOS>': 2, '<UNK>': 3,
-        'a': 4, 'c': 5, 't': 6, 'i': 7, 'o': 8, 'n': 9, 'v': 10, 'e': 11,
-        'd': 12, 'p': 13, 'r': 14, 'l': 15, 'b': 16, 'u': 17, 'm': 18, 'h': 19,
-        'g': 20, 's': 21, 'k': 22, 'y': 23, 'x': 24, 'f': 25, 'w': 26, 'j': 27,
-        'z': 28, 'q': 29, '-': 30, ' ': 31, 'é': 32, "'": 33, 'ฺ': 34, 'è': 35,
-        '岸': 36, '田': 37, '文': 38, '雄': 39, '.': 40, '1': 41, '7': 42, '3': 43,
-        '9': 44, '–': 45, '"': 46, '{': 47, '}': 48, '/': 49, '+': 50,
-        '4': 51, '8': 52, '6': 53, '2': 54, '0': 55
-    },
-    "target_idx2char": {
-        "0": "<PAD>", "1": "<SOS>", "2": "<EOS>", "3": "<UNK>",
-        "4": "แ", "5": "อ", "6": "ค", "7": "ช", "8": "ั", "9": "่", "10": "น",
-        "11": "ท", "12": "ี", "13": "ฟ", "14": "ะ", "15": "ด", "16": "ป", "17": "เ",
-        "18": "ต", "19": "ร", "20": "์", "21": "ล", "22": "บ", "23": "้", "24": "ม",
-        "25": "ก", "26": "ฮ", "27": "า", "28": "ิ", "29": "ึ", "30": "พ", "31": "ส",
-        "32": "ซ", "33": "โ", "34": "็", "35": "ง", "36": "ุ", "37": "๊", "38": "ู",
-        "39": "ว", "40": "ไ", "41": "ย", "42": "จ", "43": "ห", "44": "ศ", "45": "ธ",
-        "46": "ฤ", "47": "ษ", "48": "ฎ", "49": "๋", "50": " ", "51": "ำ", "52": "ถ",
-        "53": "ฉ", "54": "1", "55": "ญ", "56": "-", "57": "ฃ", "58": "9", "59": "3",
-        "60": "ฌ", "61": "y", "62": "l", "63": "o", "64": "n", "65": "ข", "66": "ฝ",
-        "67": "'", "68": "ฺ", "69": "ื", "70": "ใ", "71": "/", "72": "ฯ",
-        "73": "ๆ", "74": "`", "75": "ภ", "76": "&", "77": "ณ", "78": "๎",
-        "79": "*", "80": ":"
-    }
-};
+        // PASTE YOUR NEW JSON VOCAB HERE
+        const VOCAB_DATA = {"input_char2idx": {"<PAD>": 0, "<SOS>": 1, "<EOS>": 2, "<UNK>": 3, "a": 4, "r": 5, "e": 6, "b": 7, "c": 8, "d": 9, "f": 10, "g": 11, "h": 12, "i": 13, "j": 14, "k": 15, "l": 16, "m": 17, "n": 18, "o": 19, "p": 20, "q": 21, "s": 22, "t": 23, "u": 24, "v": 25, "x": 26, "y": 27, "z": 28, "w": 29, "-": 30, " ": 31, "é": 32, "'": 33, "ฺ": 34, "è": 35, ".": 36, "1": 37, "7": 38, "3": 39, "9": 40, "–": 41, "\"": 42, "+": 43, "/": 44, "4": 45, "8": 46, "6": 47, "2": 48, "0": 49}, "target_idx2char": {"0": "<PAD>", "1": "<SOS>", "2": "<EOS>", "3": "<UNK>", "4": "อ", "5": "า", "6": "ะ", "7": "บ", "8": "ี", "9": "ซ", "10": "ด", "11": "เ", "12": "ฟ", "13": "จ", "14": "ช", "15": "ไ", "16": "ค", "17": "แ", "18": "ล", "19": "็", "20": "ม", "21": "น", "22": "โ", "23": "พ", "24": "ิ", "25": "ว", "26": "ร", "27": "์", "28": "ส", "29": "ท", "30": "ย", "31": "ู", "32": "ก", "33": "ต", "34": "ป", "35": "่", "36": "ั", "37": "ง", "38": "้", "39": "ฮ", "40": "๊", "41": "ถ", "42": "ห", "43": "ธ", "44": "ึ", "45": "ุ", "46": "ศ", "47": "ฤ", "48": "ษ", "49": "ฎ", "50": "๋", "51": " ", "52": "ำ", "53": "ฉ", "54": "1", "55": "ญ", "56": "-", "57": "ฃ", "58": "9", "59": "3", "60": "ฌ", "61": "y", "62": "l", "63": "o", "64": "n", "65": "ข", "66": "ฝ", "67": "'", "68": "ฺ", "69": "ื", "70": "ใ", "71": "/", "72": "ฯ", "73": "ๆ", "74": "`", "75": "ณ", "76": "๎", "77": "*"}};
 
-        const MAX_LEN = 20;
+        const MAX_LEN = 25;
         let encSession, decSession;
 
-        // --- 2. TOKENIZERS ---
-        function tokenizeWords(sentence) {
-            return sentence.trim().split(/\s+/);
-        }
-
+        // --- TOKENIZERS ---
+        function tokenizeWords(sentence) { return sentence.trim().split(/\s+/); }
         function tokenizeSyllables(word) {
             word = word.toLowerCase();
             if (word.length <= 3) return [word];
-            if (word.slice(-2) === 'le' && !['a','e','i','o','u'].includes(word.slice(-3, -2))) {
-                const main = word.slice(0, -2);
-                return [...tokenizeSyllables(main), 'le'];
-            }
             const syllableRegex = /[^aeiouy]*[aeiouy]+(?:[^aeiouy]*$|[^aeiouy](?=[^aeiouy]))?/gi;
-            let syllables = word.match(syllableRegex) || [word];
-            const joined = syllables.join('');
-            if (joined.length < word.length) {
-                syllables[syllables.length - 1] += word.slice(joined.length);
-            }
-            return syllables;
+            return word.match(syllableRegex) || [word];
         }
 
-        // --- 3. MODEL LOADING ---
+        // --- LOAD MODELS ---
         async function loadModels() {
             try {
                 const option = { executionProviders: ['wasm'] }; 
-                encSession = await ort.InferenceSession.create('./v5-encoder.onnx', option);
-                decSession = await ort.InferenceSession.create('./v5-decoder.onnx', option);
-                document.getElementById('status').innerText = "Models Ready";
+                // Note: File names changed to _attn.onnx
+                encSession = await ort.InferenceSession.create('./v7-encoder_attn.onnx', option);
+                decSession = await ort.InferenceSession.create('./v7-decoder_attn.onnx', option);
+                document.getElementById('status').innerText = "Smart Models Ready";
                 document.getElementById('status').style.color = "green";
             } catch (e) {
-                document.getElementById('status').innerText = "Load Error";
-                document.getElementById('status').style.color = "red";
+                document.getElementById('status').innerText = "Load Error: " + e;
                 console.error(e);
             }
         }
         loadModels();
 
-        // --- 4. CORE INFERENCE ---
+        // --- SMART INFERENCE LOGIC ---
         async function transliterateWord(word) {
             word = word.toLowerCase();
             try {
+                // 1. Encode Input
                 const srcIndices = [1]; 
                 for (let char of word) srcIndices.push(VOCAB_DATA.input_char2idx[char] || 3);
                 srcIndices.push(2);
 
                 const srcTensor = new ort.Tensor('int64', BigInt64Array.from(srcIndices.map(x => BigInt(x))), [1, srcIndices.length]);
                 
+                // 2. Run Encoder
+                // Returns: { encoder_outputs, hidden }
                 const encResults = await encSession.run({ src: srcTensor });
-                const context = encResults.context;
+                
+                // We must keep these for the decoder loop
+                const encoderOutputs = encResults.encoder_outputs; 
+                let hidden = encResults.hidden;
 
-                let hidden = context;
-                let currTokenIdx = 1n;
+                // 3. Decoder Loop
+                let currTokenIdx = 1n; // <SOS>
                 let decodedStr = "";
 
                 for (let i = 0; i < MAX_LEN; i++) {
-                    const decResults = await decSession.run({
+                    // Decoder Inputs: input, hidden, encoder_outputs
+                    const decFeeds = {
                         input: new ort.Tensor('int64', BigInt64Array.from([currTokenIdx]), [1]),
                         hidden: hidden,
-                        context: context
-                    });
+                        encoder_outputs: encoderOutputs // Pass attention features every step
+                    };
+
+                    const decResults = await decSession.run(decFeeds);
                     
+                    // Update state
                     hidden = decResults.new_hidden;
                     const logits = decResults.prediction.data;
 
+                    // Argmax
                     let bestIdx = 0;
                     let maxVal = -Infinity;
                     for (let j = 0; j < logits.length; j++) {
                         if (logits[j] > maxVal) { maxVal = logits[j]; bestIdx = j; }
                     }
 
-                    if (bestIdx === 2) break;
+                    if (bestIdx === 2) break; // EOS
                     if (bestIdx > 3) decodedStr += (VOCAB_DATA.target_idx2char[bestIdx] || "");
                     currTokenIdx = BigInt(bestIdx);
                 }
                 return decodedStr;
             } catch (e) {
-                console.error("Error processing word:", word, e);
-                return "???";
+                console.error("Error:", word, e);
+                return "Error";
             }
         }
 
-        // --- 5. MAIN PIPELINE ---
+        // --- PIPELINE ---
         async function runPipeline() {
             const sentence = document.getElementById('inputText').value;
             if (!sentence || !encSession) return;
 
             const container = document.getElementById('breakdownContainer');
-            const showSyllables = document.getElementById('sylToggle').checked; // Check Toggle
-            
+            const showSyllables = document.getElementById('sylToggle').checked;
             container.innerHTML = "";
             document.getElementById('finalOutput').innerText = "...";
 
@@ -194,23 +145,16 @@
                 const thaiWord = await transliterateWord(word);
                 finalResults.push(thaiWord);
 
-                // Build Element
                 const wordBlock = document.createElement('div');
                 wordBlock.className = 'word-block';
                 
-                // CONDITIONAL RENDERING FOR SYLLABLES
                 let middleContent = "";
                 if (showSyllables) {
                     const syllables = tokenizeSyllables(word);
-                    const sylHtml = syllables.map(s => `<span class="syllable">${s}</span>`).join('');
-                    middleContent = `<div class="syllable-container">${sylHtml}</div>`;
+                    middleContent = `<div style="margin:4px 0">${syllables.map(s => `<span class="syllable">${s}</span>`).join('')}</div>`;
                 }
 
-                wordBlock.innerHTML = `
-                    <div class="word-header">${word}</div>
-                    ${middleContent}
-                    <div class="thai-output">${thaiWord}</div>
-                `;
+                wordBlock.innerHTML = `<div style="font-weight:600;color:#666">${word}</div>${middleContent}<div class="thai-output">${thaiWord}</div>`;
                 container.appendChild(wordBlock);
             }
 

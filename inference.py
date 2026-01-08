@@ -1,64 +1,59 @@
 import onnxruntime as ort
 import numpy as np
 
-# 1. Load the ONNX Models
-# Providers can be ['CUDAExecutionProvider', 'CPUExecutionProvider'] if you have GPU setup
-enc_session = ort.InferenceSession("v5-encoder.onnx", providers=['CPUExecutionProvider'])
-dec_session = ort.InferenceSession("v5-decoder.onnx", providers=['CPUExecutionProvider'])
-
 idx2char={0: '<PAD>',
  1: '<SOS>',
  2: '<EOS>',
  3: '<UNK>',
- 4: 'แ',
- 5: 'อ',
- 6: 'ค',
- 7: 'ช',
- 8: 'ั',
- 9: '่',
- 10: 'น',
- 11: 'ท',
- 12: 'ี',
- 13: 'ฟ',
- 14: 'ะ',
- 15: 'ด',
- 16: 'ป',
- 17: 'เ',
- 18: 'ต',
- 19: 'ร',
- 20: '์',
- 21: 'ล',
- 22: 'บ',
- 23: '้',
- 24: 'ม',
- 25: 'ก',
- 26: 'ฮ',
- 27: 'า',
- 28: 'ิ',
- 29: 'ึ',
- 30: 'พ',
- 31: 'ส',
- 32: 'ซ',
- 33: 'โ',
- 34: '็',
- 35: 'ง',
- 36: 'ุ',
- 37: '๊',
- 38: 'ู',
- 39: 'ว',
- 40: 'ไ',
- 41: 'ย',
- 42: 'จ',
- 43: 'ห',
- 44: 'ศ',
- 45: 'ธ',
- 46: 'ฤ',
- 47: 'ษ',
- 48: 'ฎ',
- 49: '๋',
- 50: ' ',
- 51: 'ำ',
- 52: 'ถ',
+ 4: 'อ',
+ 5: 'า',
+ 6: 'ะ',
+ 7: 'บ',
+ 8: 'ี',
+ 9: 'ซ',
+ 10: 'ด',
+ 11: 'เ',
+ 12: 'ฟ',
+ 13: 'จ',
+ 14: 'ช',
+ 15: 'ไ',
+ 16: 'ค',
+ 17: 'แ',
+ 18: 'ล',
+ 19: '็',
+ 20: 'ม',
+ 21: 'น',
+ 22: 'โ',
+ 23: 'พ',
+ 24: 'ิ',
+ 25: 'ว',
+ 26: 'ร',
+ 27: '์',
+ 28: 'ส',
+ 29: 'ท',
+ 30: 'ย',
+ 31: 'ู',
+ 32: 'ก',
+ 33: 'ต',
+ 34: 'ป',
+ 35: '่',
+ 36: 'ั',
+ 37: 'ง',
+ 38: '้',
+ 39: 'ฮ',
+ 40: '๊',
+ 41: 'ถ',
+ 42: 'ห',
+ 43: 'ธ',
+ 44: 'ึ',
+ 45: 'ุ',
+ 46: 'ศ',
+ 47: 'ฤ',
+ 48: 'ษ',
+ 49: 'ฎ',
+ 50: '๋',
+ 51: ' ',
+ 52: 'ำ',
  53: 'ฉ',
  54: '1',
  55: 'ญ',
@@ -81,167 +76,136 @@ idx2char={0: '<PAD>',
  72: 'ฯ',
  73: 'ๆ',
  74: '`',
- 75: 'ภ',
- 76: '&',
- 77: 'ณ',
- 78: '๎',
- 79: '*',
- 80: ':'}
+ 75: 'ณ',
+ 76: '๎',
+ 77: '*'}
 
-class Vocabulary:
-    def __init__(self):
-        self.char2idx = {"<PAD>": 0, "<SOS>": 1, "<EOS>": 2, "<UNK>": 3}
-        self.idx2char = {0: "<PAD>", 1: "<SOS>", 2: "<EOS>", 3: "<UNK>"}
-        self.n_chars = 4
 
-    def add_sentence(self, sentence):
-        for char in str(sentence):
-            if char not in self.char2idx:
-                self.char2idx[char] = self.n_chars
-                self.idx2char[self.n_chars] = char
-                self.n_chars += 1
-
-    def encode(self, sentence, max_len=None):
-        indices = [self.char2idx.get(c, 3) for c in str(sentence)]
-        indices = [1] + indices + [2] # Add SOS and EOS
-        return indices
-
-input_vocab=Vocabulary()
-input_vocab.char2idx={'<PAD>': 0,
+char2idx={'<PAD>': 0,
  '<SOS>': 1,
  '<EOS>': 2,
  '<UNK>': 3,
  'a': 4,
- 'c': 5,
- 't': 6,
- 'i': 7,
- 'o': 8,
- 'n': 9,
- 'v': 10,
- 'e': 11,
- 'd': 12,
- 'p': 13,
- 'r': 14,
- 'l': 15,
- 'b': 16,
- 'u': 17,
- 'm': 18,
- 'h': 19,
- 'g': 20,
- 's': 21,
- 'k': 22,
- 'y': 23,
- 'x': 24,
- 'f': 25,
- 'w': 26,
- 'j': 27,
+ 'r': 5,
+ 'e': 6,
+ 'b': 7,
+ 'c': 8,
+ 'd': 9,
+ 'f': 10,
+ 'g': 11,
+ 'h': 12,
+ 'i': 13,
+ 'j': 14,
+ 'k': 15,
+ 'l': 16,
+ 'm': 17,
+ 'n': 18,
+ 'o': 19,
+ 'p': 20,
+ 'q': 21,
+ 's': 22,
+ 't': 23,
+ 'u': 24,
+ 'v': 25,
+ 'x': 26,
+ 'y': 27,
  'z': 28,
- 'q': 29,
+ 'w': 29,
  '-': 30,
  ' ': 31,
  'é': 32,
  "'": 33,
  'ฺ': 34,
  'è': 35,
- '岸': 36,
- '田': 37,
- '文': 38,
- '雄': 39,
- '.': 40,
- '1': 41,
- '7': 42,
- '3': 43,
- '9': 44,
- '–': 45,
- '"': 46,
- '{': 47,
- '}': 48,
- '/': 49,
- '+': 50,
- '4': 51,
- '8': 52,
- '6': 53,
- '2': 54,
- '0': 55}
+ '.': 36,
+ '1': 37,
+ '7': 38,
+ '3': 39,
+ '9': 40,
+ '–': 41,
+ '"': 42,
+ '+': 43,
+ '/': 44,
+ '4': 45,
+ '8': 46,
+ '6': 47,
+ '2': 48,
+ '0': 49}
 
+# 1. Configuration (Must match your training vocab)
+# Replace this with the JSON you exported earlier if it's different
+# This is just a placeholder example based on standard characters
+class Vocabulary:
+    def __init__(self):
+        # You should load the actual JSON here in production
+        self.char2idx = char2idx
+        self.idx2char = idx2char
+        # ... (You must populate this with your actual characters) ...
 
-def transliterate_onnx(word, max_len=20):
+    def encode(self, sentence):
+        # Helper to encode string to [SOS, indices, EOS]
+        return [1] + [self.char2idx.get(c, 3) for c in sentence] + [2]
+
+# 2. Load the Smart Models
+# Note: Ensure you are loading the '_attn.onnx' versions
+enc_session = ort.InferenceSession("v7-encoder_attn.onnx", providers=['CPUExecutionProvider'])
+dec_session = ort.InferenceSession("v7-decoder_attn.onnx", providers=['CPUExecutionProvider'])
+
+def transliterate_smart(word, max_len=25):
     # ==========================================
-    # Step 1: Preprocess Input (Encoder)
+    # Step A: Encoder
     # ==========================================
-    # Encode string to indices [SOS, chars, EOS]
-    # Note: Ensure your Vocabulary.encode method returns a list of integers
-    src_indices = input_vocab.encode(word) 
-    
-    # Convert to NumPy: Shape [1, seq_len] (Batch size 1)
-    src_input = np.array([src_indices], dtype=np.int64)
-    
-    # Run Encoder
-    # ONNX Input name: 'src' (defined during export)
-    # ONNX Output name: 'context'
+    # 1. Prepare Input
+    src_indices = [1] + [char2idx.get(c, 3) for c in word.lower()] + [2]
+    src_input = np.array([src_indices], dtype=np.int64) # Shape: [1, seq_len]
+
+    # 2. Run Encoder
+    # Returns:
+    # - encoder_outputs: [1, seq_len, hidden*2] (Used for Attention)
+    # - hidden: [1, 1, hidden] (Used to init Decoder)
     ort_inputs = {enc_session.get_inputs()[0].name: src_input}
-    context = enc_session.run(None, ort_inputs)[0] # Shape: [1, 1, hidden_dim]
+    enc_results = enc_session.run(None, ort_inputs)
+
+    encoder_outputs = enc_results[0]
+    hidden = enc_results[1]
 
     # ==========================================
-    # Step 2: Initialize Decoder Loop
+    # Step B: Decoder Loop (with Attention)
     # ==========================================
-    # Initial Hidden State is the Context from Encoder
-    hidden = context 
-    
-    # Start Token <SOS> (Index 1 based on your training script)
-    curr_token = np.array([1], dtype=np.int64) 
-    
-    decoded_indices = []
-    
-    # ==========================================
-    # Step 3: Autoregressive Loop
-    # ==========================================
+    curr_token = np.array([1], dtype=np.int64) # <SOS>
+    decoded_chars = []
+
     for _ in range(max_len):
-        # Prepare inputs for Decoder
-        # Inputs: input (token), hidden, context
+        # Inputs: input, hidden, encoder_outputs
         dec_inputs = {
-            dec_session.get_inputs()[0].name: curr_token, # [1]
-            dec_session.get_inputs()[1].name: hidden,     # [1, 1, 256]
-            dec_session.get_inputs()[2].name: context     # [1, 1, 256]
+            dec_session.get_inputs()[0].name: curr_token,      # [1]
+            dec_session.get_inputs()[1].name: hidden,          # [1, 1, hidden]
+            dec_session.get_inputs()[2].name: encoder_outputs  # [1, seq_len, hidden*2]
         }
-        
+
         # Run Decoder
-        # Outputs: prediction [1, vocab_size], new_hidden [1, 1, 256]
         outputs = dec_session.run(None, dec_inputs)
-        prediction = outputs[0]
-        hidden = outputs[1] # Update hidden state for next step
-        
-        # Greedy Search: Pick the index with highest probability
-        best_token_idx = np.argmax(prediction, axis=1)[0]
-        
-        # Check for <EOS> (Index 2)
+
+        prediction_logits = outputs[0] # [1, vocab_size]
+        hidden = outputs[1]            # Update hidden state
+
+        # Greedy Search (Argmax)
+        best_token_idx = np.argmax(prediction_logits)
+
+        # Check EOS
         if best_token_idx == 2:
             break
-            
-        decoded_indices.append(best_token_idx)
-        
-        # Update current token for next iteration
+
+        decoded_chars.append(idx2char.get(best_token_idx, ""))
         curr_token = np.array([best_token_idx], dtype=np.int64)
 
-    # ==========================================
-    # Step 4: Convert Indices to String
-    # ==========================================
-    result = ""
-    for idx in decoded_indices:
-        # Use your vocab's idx2char dictionary
-        char = idx2char.get(idx, "")
-        result += char
-        
-    return result
+    return "".join(decoded_chars)
 
-# ==========================================
-# Test It
-# ==========================================
 test_words = ["hello", "computer", "bangkok", "pie","cat","unknow","sunset"]
 
 print(f"{'English':<15} | {'Thai (Predicted)':<15}")
 print("-" * 35)
 
 for word in test_words:
-    thai_pred = transliterate_onnx(word)
+    thai_pred = transliterate_smart(word)
     print(f"{word:<15} | {thai_pred:<15}")
